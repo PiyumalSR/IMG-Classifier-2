@@ -1,20 +1,28 @@
 import os
+import json
 import numpy as np
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from PIL import Image
 import io
+import keras
 
 app = Flask(__name__)
 CORS(app)
 
 # ── Load model once at startup ──────────────────────────────────────────────
-import keras
-MODEL_CONFIG  = os.path.join(os.path.dirname(__file__), "model_weights.h5")
+BASE_DIR     = os.path.dirname(__file__)
+CONFIG_PATH  = os.path.join(BASE_DIR, "config.json")
+WEIGHTS_PATH = os.path.join(BASE_DIR, "model.weights.h5")
 
-model = keras.saving.load_model(MODEL_CONFIG)
+# Build model from architecture (config.json), then load weights
+with open(CONFIG_PATH, "r") as f:
+    config = json.load(f)
 
-# ── Class labels (CIFAR-10 — replace if you used a different dataset) ────────
+model = keras.models.model_from_json(json.dumps(config))
+model.load_weights(WEIGHTS_PATH)
+
+# ── Class labels (CIFAR-10) ──────────────────────────────────────────────────
 CLASS_NAMES = [
     "airplane", "automobile", "bird", "cat", "deer",
     "dog", "frog", "horse", "ship", "truck"
@@ -36,20 +44,17 @@ def predict():
         return jsonify({"error": "Empty filename."}), 400
 
     try:
-        # Read and preprocess image
         img_bytes = file.read()
         img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-        img = img.resize((32, 32))                        # model input size
-        img_array = np.array(img, dtype="float32") / 255.0  # normalize to [0, 1]
-        img_array = np.expand_dims(img_array, axis=0)    # shape: (1, 32, 32, 3)
+        img = img.resize((32, 32))
+        img_array = np.array(img, dtype="float32") / 255.0
+        img_array = np.expand_dims(img_array, axis=0)
 
-        # Run inference
-        predictions = model.predict(img_array, verbose=0)  # shape: (1, 10)
+        predictions = model.predict(img_array, verbose=0)
         predicted_index = int(np.argmax(predictions[0]))
         confidence = float(np.max(predictions[0]))
         predicted_class = CLASS_NAMES[predicted_index]
 
-        # Build full probability map
         probabilities = {
             CLASS_NAMES[i]: round(float(predictions[0][i]), 4)
             for i in range(len(CLASS_NAMES))
