@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Image Classifier</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f0f1a;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      background: linear-gradient(90deg, #7c6ff7, #5ec4ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    p.subtitle {
+      color: #888;
+      margin-bottom: 40px;
+      font-size: 0.95rem;
+    }
+
+    .card {
+      background: #1a1a2e;
+      border: 1px solid #2e2e4a;
+      border-radius: 16px;
+      padding: 36px;
+      width: 100%;
+      max-width: 520px;
+    }
+
+    /* Drop Zone */
+    .drop-zone {
+      border: 2px dashed #3a3a5c;
+      border-radius: 12px;
+      padding: 48px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: #7c6ff7;
+      background: #1f1f3a;
+    }
+
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .drop-zone .icon {
+      font-size: 3rem;
+      margin-bottom: 12px;
+    }
+
+    .drop-zone p {
+      color: #888;
+      font-size: 0.9rem;
+    }
+
+    .drop-zone p span {
+      color: #7c6ff7;
+      font-weight: 600;
+    }
+
+    /* Preview */
+    #preview-wrap {
+      margin-top: 20px;
+      display: none;
+      text-align: center;
+    }
+
+    #preview-wrap img {
+      max-width: 100%;
+      max-height: 220px;
+      border-radius: 10px;
+      border: 1px solid #2e2e4a;
+      object-fit: contain;
+    }
+
+    #file-name {
+      margin-top: 8px;
+      font-size: 0.82rem;
+      color: #666;
+    }
+
+    /* Button */
+    button#predict-btn {
+      margin-top: 24px;
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(90deg, #7c6ff7, #5ec4ff);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    button#predict-btn:hover { opacity: 0.88; }
+    button#predict-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Loader */
+    .loader {
+      display: none;
+      margin: 24px auto 0;
+      width: 36px;
+      height: 36px;
+      border: 3px solid #2e2e4a;
+      border-top-color: #7c6ff7;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Result */
+    #result {
+      display: none;
+      margin-top: 28px;
+      background: #12122a;
+      border: 1px solid #2e2e4a;
+      border-radius: 12px;
+      padding: 24px;
+    }
+
+    #result .top {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    #result .emoji { font-size: 2.4rem; }
+
+    #result .label {
+      font-size: 1.5rem;
+      font-weight: 700;
+      text-transform: capitalize;
+    }
+
+    #result .confidence {
+      font-size: 0.85rem;
+      color: #888;
+      margin-top: 2px;
+    }
+
+    #result h4 {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #555;
+      margin-bottom: 12px;
+    }
+
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      font-size: 0.85rem;
+    }
+
+    .bar-label {
+      width: 90px;
+      text-align: right;
+      color: #aaa;
+      text-transform: capitalize;
+      flex-shrink: 0;
+    }
+
+    .bar-track {
+      flex: 1;
+      background: #2a2a40;
+      border-radius: 6px;
+      height: 8px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 6px;
+      background: linear-gradient(90deg, #7c6ff7, #5ec4ff);
+      transition: width 0.6s ease;
+    }
+
+    .bar-pct {
+      width: 42px;
+      text-align: right;
+      color: #666;
+      flex-shrink: 0;
+    }
+
+    /* Error */
+    #error-msg {
+      display: none;
+      margin-top: 20px;
+      background: #2a1020;
+      border: 1px solid #5a2030;
+      border-radius: 10px;
+      padding: 14px 18px;
+      color: #f88;
+      font-size: 0.88rem;
+    }
+
+    /* API URL input */
+    .api-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+
+    .api-row input {
+      flex: 1;
+      background: #12122a;
+      border: 1px solid #2e2e4a;
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: #ccc;
+      font-size: 0.85rem;
+      outline: none;
+    }
+
+    .api-row input:focus { border-color: #7c6ff7; }
+
+    .api-row label {
+      display: block;
+      font-size: 0.75rem;
+      color: #555;
+      margin-bottom: 6px;
+    }
+
+    .api-wrap { width: 100%; }
+  </style>
+</head>
+<body>
+
+  <h1>🔍 Image Classifier</h1>
+  <p class="subtitle">Upload an image and get an instant prediction</p>
+
+  <div class="card">
+
+    <!-- API URL -->
+    <div class="api-wrap">
+      <label for="api-url">Your Render API URL</label>
+      <div class="api-row">
+        <input type="text" id="api-url"
+          placeholder="https://your-app.onrender.com/predict"
+          value="" />
+      </div>
+    </div>
+
+    <!-- Drop Zone -->
+    <div class="drop-zone" id="drop-zone">
+      <input type="file" id="file-input" accept="image/*" />
+      <div class="icon">🖼️</div>
+      <p><span>Click to upload</span> or drag & drop</p>
+      <p>PNG, JPG, WEBP supported</p>
+    </div>
+
+    <!-- Preview -->
+    <div id="preview-wrap">
+      <img id="preview-img" src="" alt="Preview" />
+      <div id="file-name"></div>
+    </div>
+
+    <!-- Predict Button -->
+    <button id="predict-btn" disabled>Predict</button>
+
+    <!-- Loader -->
+    <div class="loader" id="loader"></div>
+
+    <!-- Error -->
+    <div id="error-msg"></div>
+
+    <!-- Result -->
+    <div id="result">
+      <div class="top">
+        <div class="emoji" id="result-emoji">🎯</div>
+        <div>
+          <div class="label" id="result-label">—</div>
+          <div class="confidence" id="result-conf">—</div>
+        </div>
+      </div>
+      <h4>All probabilities</h4>
+      <div id="bars"></div>
+    </div>
+
+  </div>
+
+  <script>
+    const CLASS_EMOJIS = {
+      airplane: "✈️", automobile: "🚗", bird: "🐦", cat: "🐱",
+      deer: "🦌", dog: "🐶", frog: "🐸", horse: "🐴",
+      ship: "🚢", truck: "🚛"
+    };
+
+    const dropZone   = document.getElementById("drop-zone");
+    const fileInput  = document.getElementById("file-input");
+    const previewWrap = document.getElementById("preview-wrap");
+    const previewImg  = document.getElementById("preview-img");
+    const fileName    = document.getElementById("file-name");
+    const predictBtn  = document.getElementById("predict-btn");
+    const loader      = document.getElementById("loader");
+    const result      = document.getElementById("result");
+    const errorMsg    = document.getElementById("error-msg");
+    const apiUrlInput = document.getElementById("api-url");
+
+    let selectedFile = null;
+
+    // Drag & drop visual feedback
+    dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+    dropZone.addEventListener("drop", e => {
+      e.preventDefault();
+      dropZone.classList.remove("dragover");
+      const file = e.dataTransfer.files[0];
+      if (file) handleFile(file);
+    });
+
+    fileInput.addEventListener("change", () => {
+      if (fileInput.files[0]) handleFile(fileInput.files[0]);
+    });
+
+    function handleFile(file) {
+      selectedFile = file;
+      const reader = new FileReader();
+      reader.onload = e => {
+        previewImg.src = e.target.result;
+        previewWrap.style.display = "block";
+        fileName.textContent = file.name;
+      };
+      reader.readAsDataURL(file);
+      predictBtn.disabled = false;
+      result.style.display = "none";
+      errorMsg.style.display = "none";
+    }
+
+    predictBtn.addEventListener("click", async () => {
+      if (!selectedFile) return;
+
+      const apiUrl = apiUrlInput.value.trim();
+      if (!apiUrl) {
+        showError("Please enter your Render API URL above.");
+        return;
+      }
+
+      // UI: loading state
+      predictBtn.disabled = true;
+      loader.style.display = "block";
+      result.style.display = "none";
+      errorMsg.style.display = "none";
+
+      try {
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+
+        const response = await fetch(apiUrl, { method: "POST", body: formData });
+
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.error || `Server error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        showResult(data);
+
+      } catch (err) {
+        showError(err.message || "Something went wrong. Is your API running?");
+      } finally {
+        loader.style.display = "none";
+        predictBtn.disabled = false;
+      }
+    });
+
+    function showResult(data) {
+      const label = data.prediction;
+      const conf  = (data.confidence * 100).toFixed(1);
+      const probs = data.probabilities;
+
+      document.getElementById("result-emoji").textContent = CLASS_EMOJIS[label] || "🎯";
+      document.getElementById("result-label").textContent = label;
+      document.getElementById("result-conf").textContent  = `Confidence: ${conf}%`;
+
+      // Build probability bars (sorted descending)
+      const barsDiv = document.getElementById("bars");
+      barsDiv.innerHTML = "";
+      const sorted = Object.entries(probs).sort((a, b) => b[1] - a[1]);
+
+      sorted.forEach(([cls, prob]) => {
+        const pct = (prob * 100).toFixed(1);
+        const row = document.createElement("div");
+        row.className = "bar-row";
+        row.innerHTML = `
+          <div class="bar-label">${cls}</div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width: 0%" data-pct="${pct}"></div>
+          </div>
+          <div class="bar-pct">${pct}%</div>
+        `;
+        barsDiv.appendChild(row);
+      });
+
+      result.style.display = "block";
+
+      // Animate bars after render
+      requestAnimationFrame(() => {
+        document.querySelectorAll(".bar-fill").forEach(el => {
+          el.style.width = el.dataset.pct + "%";
+        });
+      });
+    }
+
+    function showError(msg) {
+      errorMsg.textContent = "⚠️ " + msg;
+      errorMsg.style.display = "block";
+    }
+  </script>
+</body>
+</html>
