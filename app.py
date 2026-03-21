@@ -36,9 +36,19 @@ with open(CONFIG_PATH, "r") as f:
     config = json.load(f)
 
 def remove_unsupported_keys(obj):
-    unsupported = {"quantization_config", "dtype_policy", "shared_object_id"}
+    unsupported = {"quantization_config", "dtype_policy", "shared_object_id", "optional"}
     if isinstance(obj, dict):
-        return {k: remove_unsupported_keys(v) for k, v in obj.items() if k not in unsupported}
+        cleaned = {}
+        for k, v in obj.items():
+            if k in unsupported:
+                continue
+            # rename batch_shape -> shape for older Keras InputLayer
+            if k == "batch_shape":
+                # convert [None, 32, 32, 3] -> [32, 32, 3] (remove batch dim)
+                cleaned["shape"] = v[1:] if isinstance(v, list) and len(v) > 1 else v
+            else:
+                cleaned[k] = remove_unsupported_keys(v)
+        return cleaned
     elif isinstance(obj, list):
         return [remove_unsupported_keys(i) for i in obj]
     return obj
